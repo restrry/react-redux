@@ -96,7 +96,7 @@ export default function connectAdvanced(
         this.state = {}
         this.renderCount = 0
         this.store = this.props[storeKey] || this.context[storeKey]
-        this.parentSub = this.props[subscriptionKey] || this.context[subscriptionKey]
+        this.parentSub = null
         this.setWrappedInstance = this.setWrappedInstance.bind(this)
 
         invariant(this.store,
@@ -111,7 +111,8 @@ export default function connectAdvanced(
         this.getState = this.store.getState.bind(this.store);
 
         this.initSelector()
-        this.initSubscription()
+        const parentSub = this.props[subscriptionKey] || this.context[subscriptionKey]
+        this.initSubscription(parentSub)
       }
 
       getChildContext() {
@@ -187,8 +188,10 @@ export default function connectAdvanced(
         }
       }
 
-      initSubscription() {
-        if (shouldHandleStateChanges) {
+      initSubscription(nextParentSub) {
+        const shouldUpdateSub = nextParentSub ? this.parentSub !== nextParentSub : true
+        if (shouldHandleStateChanges && shouldUpdateSub) {
+          this.parentSub = nextParentSub
           const subscription = this.subscription = new Subscription(this.store, this.parentSub)
           const notifyNestedSubs = subscription.notifyNestedSubs.bind(subscription)
           const dummyState = {}
@@ -240,14 +243,15 @@ export default function connectAdvanced(
     Connect.propTypes = contextTypes
 
     if (process.env.NODE_ENV !== 'production') {
-      Connect.prototype.componentWillUpdate = function componentWillUpdate() {
+      Connect.prototype.componentWillUpdate = function componentWillUpdate(nextProps, nextState, nextContext) {
         // We are hot reloading!
         if (this.version !== version) {
           this.version = version
           this.initSelector()
 
           if (this.subscription) this.subscription.tryUnsubscribe()
-          this.initSubscription()
+          const parentSub = nextProps[subscriptionKey] || nextContext[subscriptionKey];
+          this.initSubscription(parentSub)
           if (shouldHandleStateChanges) this.subscription.trySubscribe()
         }
       }
